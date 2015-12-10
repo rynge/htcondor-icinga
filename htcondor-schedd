@@ -1,0 +1,96 @@
+#!/usr/bin/python
+
+import optparse
+import sys
+import time
+
+import htcondor
+import classad
+
+UNKNOWN  = 3
+CRITICAL = 2
+WARN     = 1
+OK       = 0
+
+issues = []
+
+def reg_issue(level, msg):
+    issues.append([level, msg])
+
+def report():
+
+    high_level = 0
+    for level in [UNKNOWN, CRITICAL, WARN, OK]:
+        for issue in issues:
+            if issue[0] == level:
+                print(issue[1])
+                if level > high_level:
+                    high_level = level
+    sys.exit(high_level)
+
+
+def get_schedd_ad(coll_host, schedd_name):
+    ad = None
+    try:
+        coll = htcondor.Collector(coll_host)
+        ad = coll.locate(htcondor.DaemonTypes.Schedd, schedd_name)
+    except:
+        pass
+    return ad
+
+
+def check(coll_host, schedd_name):
+    """
+    The tests to perform in the given order. Check at logically places
+    if we should short-circuit the testing.
+    """
+
+    ad = get_schedd_ad(coll_host, schedd_name)
+    if ad is None:
+        reg_issue(CRITICAL, "Unable to find schedd ad in the collector")
+        report()
+
+    # we should check for existances of some variables here
+
+    # responsiveness
+    delta = time.time() - ad['LastHeardFrom']
+    if delta > 300:
+        reg_issue(CRITICAL, "No updates from the schedd for %d seconds" %(delta))
+
+    # transfer queues
+    if ad['TransferQueueNumWaitingToUpload'] > 0:
+        reg_issue(WARN, "%d jobs waiting to upload" %(ad['TransferQueueNumWaitingToUpload']))
+    if ad['TransferQueueNumWaitingToDownload'] > 0:
+        reg_issue(WARN, "%d jobs waiting to upload" %(ad['TransferQueueNumWaitingToDownload']))
+
+    # scheduler universe
+    if ad['TotalSchedulerJobsIdle'] > 3:
+        reg_issue(WARN, "%d scheduler universe jobs in the idle state" %(ad['TotalSchedulerJobsIdle']))
+    
+    # local universe
+    if ad['TotalLocalJobsIdle'] > 3:
+        reg_issue(WARN, "%d local universe jobs in the idle state" %(ad['TotalLocalJobsIdle']))
+
+    # held jobs relative to the running ones
+    if ad['TotalHeldJobs'] > 10 and ad['TotalHeldJobs'] > ad['TotalRunningJobs'] * 0.20:
+        reg_issue(WARN, "%d held jobs, which is %.0f%% of running jobs" \
+                        %(ad['TotalHeldJobs'], float(ad['TotalHeldJobs']) / ad['TotalRunningJobs'] * 100))
+
+    reg_issue(OK, "%d running, %d idle, %d held" \
+                  %(ad['TotalRunningJobs'], ad['TotalIdleJobs'], ad['TotalHeldJobs']))
+
+    # we have to end with a call to report
+    report()
+
+
+# Configure command line option parser
+parser = optparse.OptionParser()
+parser.add_option("-c", "--collector-host", action = "store", dest = "coll_host",
+                  help = "Hostname of the collector")
+parser.add_option("-s", "--schedd-name", action = "store", dest = "schedd_name",
+                  help = "Schedd name as registered in the collector")
+(options, args) = parser.parse_args()
+
+check(options.coll_host, options.schedd_name)
+
+
