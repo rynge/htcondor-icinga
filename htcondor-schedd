@@ -39,7 +39,7 @@ def get_schedd_ad(coll_host, schedd_name):
     return ad
 
 
-def check(coll_host, schedd_name):
+def check(coll_host, schedd_name, missing_ok):
     """
     The tests to perform in the given order. Check at logically places
     if we should short-circuit the testing.
@@ -47,6 +47,9 @@ def check(coll_host, schedd_name):
 
     ad = get_schedd_ad(coll_host, schedd_name)
     if ad is None:
+        if missing_ok:
+            reg_issue(OK, "Schedd currently not reporting")
+            report()
         reg_issue(CRITICAL, "Unable to find schedd ad in the collector")
         report()
 
@@ -89,8 +92,13 @@ parser.add_option("-c", "--collector-host", action = "store", dest = "coll_host"
                   help = "Hostname of the collector")
 parser.add_option("-s", "--schedd-name", action = "store", dest = "schedd_name",
                   help = "Schedd name as registered in the collector")
+parser.add_option("-m", "--missing-ok", action = "store_true", dest = "missing_ok",
+                  help = "Missing scheduler is considered success - good for flocking")
 (options, args) = parser.parse_args()
 
-check(options.coll_host, options.schedd_name)
+if options.missing_ok is None:
+    options.missing_ok = False
+
+check(options.coll_host, options.schedd_name, options.missing_ok)
 
 
