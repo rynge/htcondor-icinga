@@ -33,7 +33,7 @@ def get_schedd_ad(coll_host, schedd_name):
     ad = None
     try:
         coll = htcondor.Collector(coll_host)
-        ad = coll.locate(htcondor.DaemonTypes.Schedd, schedd_name)
+        ad = coll.query(htcondor.AdTypes.Schedd, constraint = 'Name == "' +schedd_name + '"')[0]
     except:
         pass
     return ad
