@@ -76,8 +76,11 @@ def check(coll_host, schedd_name, missing_ok):
 
     # held jobs relative to the running ones
     if ad['TotalHeldJobs'] > 10 and ad['TotalHeldJobs'] > ad['TotalRunningJobs'] * 0.20:
-        reg_issue(WARN, "%d held jobs, which is %.0f%% of running jobs" \
-                        %(ad['TotalHeldJobs'], float(ad['TotalHeldJobs']) / ad['TotalRunningJobs'] * 100))
+        if ad['TotalRunningJobs'] == 0:
+            reg_issue(WARN, "100% held jobs")
+        else:
+            reg_issue(WARN, "%d held jobs, which is %.0f%% of running jobs" \
+                             %(ad['TotalHeldJobs'], float(ad['TotalHeldJobs']) / ad['TotalRunningJobs'] * 100))
 
     reg_issue(OK, "%d running, %d idle, %d held" \
                   %(ad['TotalRunningJobs'], ad['TotalIdleJobs'], ad['TotalHeldJobs']))
